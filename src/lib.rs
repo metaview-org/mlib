@@ -1,4 +1,4 @@
-use ammolite_math::Mat4;
+use ammolite_math::{Mat4, Vec3};
 use serde::{Serialize, Deserialize};
 
 pub use proc_macro_mapp::mapp;
@@ -13,6 +13,27 @@ pub struct IO {
 pub struct Model(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Entity(pub usize);
+
+#[derive(PartialEq, Clone, Default, Debug, Serialize, Deserialize)]
+pub struct ViewFov {
+    pub angle_left: f32,
+    pub angle_right: f32,
+    pub angle_up: f32,
+    pub angle_down: f32,
+}
+
+#[derive(PartialEq, Clone, Default, Debug, Serialize, Deserialize)]
+pub struct View {
+    pub pose: Mat4,
+    pub fov: ViewFov,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Intersection {
+    pub position: Vec3,
+    pub distance_from_origin: f32,
+    pub entity: Entity,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Command {
@@ -78,4 +99,16 @@ command_kinds! {
     } -> {
         previous_transform: Option<Mat4>,
     },
+    // Consider changing the name
+    GetViewOrientation {} -> {
+        views_per_medium: Vec<Option<Vec<View>>>,
+    },
+    // TODO:
+    // * Consider adding the ability to select which entities to ray trace via a mask.
+    RayTrace {
+        origin: Vec3,
+        direction: Vec3,
+    } -> {
+        closest_intersection: Option<Intersection>,
+    }
 }
