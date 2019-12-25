@@ -9,6 +9,24 @@ pub struct IO {
     pub err: Vec<u8>,
 }
 
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub struct Base64ByteSlice(String);
+
+impl Base64ByteSlice {
+    pub fn into_bytes(self) -> Vec<u8> {
+        base64::decode(&self.0)
+            .expect("Invalid base64 byte slice. Was there an error during encoding?")
+    }
+}
+
+impl<T: AsRef<[u8]>> From<T> for Base64ByteSlice {
+    fn from(other: T) -> Self {
+        let bytes = other.as_ref();
+        let string = base64::encode(bytes);
+        Self(string)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Model(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -71,7 +89,10 @@ macro_rules! command_kinds {
 
 command_kinds! {
     ModelCreate {
-        data: Vec<u8>,
+        // Due to the fact that we're currently using JSON for command
+        // serialization, it is actually faster to encode byte slices into
+        // a utf-8 base64 string.
+        data: Base64ByteSlice,
     } -> {
         model: Model,
     },
