@@ -246,12 +246,12 @@ pub fn mapp(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pr
     // Functions, which require serialization, implemented by the Metaview App.
     // Ensure absolute paths to types are used.
     let mapp_function_headers = mapp_function_headers! {
-        fn test(&mut self, arg: String) -> Vec<String>;
+        // fn test(&mut self, arg: String) -> Vec<String>;
         fn update(&mut self, elapsed: std::time::Duration);
         fn send_command(&mut self) -> Option<::mlib::Command>;
         fn receive_command_response(&mut self, response: ::mlib::CommandResponse);
         fn flush_io(&mut self) -> ::mlib::IO;
-        // fn get_model_matrices(&mut self, secs_elapsed: f32) -> Vec<::ammolite_math::Mat4>;
+        fn receive_event(&mut self, event: ::mlib::Event);
     };
 
     if args.to_string() == "host" {

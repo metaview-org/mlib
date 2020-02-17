@@ -1,6 +1,9 @@
 use ammolite_math::{Mat4, Vec3};
 use serde::{Serialize, Deserialize};
 
+mod event;
+
+pub use event::*;
 pub use proc_macro_mapp::mapp;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -131,5 +134,6 @@ command_kinds! {
         direction: Vec3,
     } -> {
         closest_intersection: Option<Intersection>,
-    }
+    },
+    Exit,
 }
