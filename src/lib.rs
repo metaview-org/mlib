@@ -1,7 +1,7 @@
 use ammolite_math::{Mat4, Vec3};
 use serde::{Serialize, Deserialize};
 
-mod event;
+pub mod event;
 
 pub use event::*;
 pub use proc_macro_mapp::mapp;

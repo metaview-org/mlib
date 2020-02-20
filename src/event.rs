@@ -323,6 +323,26 @@ pub enum MouseButton {
     Other(u8),
 }
 
+/// Describes a difference in the mouse scroll wheel state.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum MouseScrollDelta {
+    /// Amount in lines or rows to scroll in the horizontal
+    /// and vertical directions.
+    ///
+    /// Positive values indicate movement forward
+    /// (away from the user) or rightwards.
+    LineDelta(f32, f32),
+    /// Amount in pixels to scroll in the horizontal and
+    /// vertical direction.
+    ///
+    /// Scroll events are expressed as a PixelDelta if
+    /// supported by the device (eg. a touchpad) and
+    /// platform.
+    PixelDelta {
+        logical_position: [f64; 2],
+    },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
@@ -445,26 +465,6 @@ pub enum WindowEvent {
     ThemeChanged(Theme),
 }
 
-/// Describes a difference in the mouse scroll wheel state.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum MouseScrollDelta {
-    /// Amount in lines or rows to scroll in the horizontal
-    /// and vertical directions.
-    ///
-    /// Positive values indicate movement forward
-    /// (away from the user) or rightwards.
-    LineDelta(f32, f32),
-    /// Amount in pixels to scroll in the horizontal and
-    /// vertical direction.
-    ///
-    /// Scroll events are expressed as a PixelDelta if
-    /// supported by the device (eg. a touchpad) and
-    /// platform.
-    PixelDelta {
-        logical_position: [f64; 2],
-    },
-}
-
 /// Represents raw hardware events that are not associated with any particular window.
 ///
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
@@ -516,11 +516,45 @@ pub enum DeviceEvent {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[repr(u32)]
+pub enum XrSessionState {
+    Unknown,
+    Idle,
+    Ready,
+    Synchronized,
+    Visible,
+    Focused,
+    Stopping,
+    LossPending,
+    Exiting,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum XrEvent {
+    EventsLost {
+        lost_event_count: u32,
+    },
+    InstanceLossPending {
+        loss_time_nanos: i64,
+    },
+    SessionStateChanged {
+        state: XrSessionState,
+        time_nanos: i64,
+    },
+    // TODO:
+    // ReferenceSpaceChangePending(ReferenceSpaceChangePending<'a>),
+    // PerfSettingsEXT(PerfSettingsEXT<'a>),
+    // VisibilityMaskChangedKHR(VisibilityMaskChangedKHR<'a>),
+    // InteractionProfileChanged(InteractionProfileChanged<'a>),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Event {
     Window(WindowEvent),
-    DeviceEvent {
+    Device {
         device_id: Device,
         event: DeviceEvent,
     },
+    Xr(XrEvent),
 }
