@@ -397,6 +397,15 @@ pub enum WindowEvent {
         /// Otherwise, this value is always `false`.
         is_synthetic: bool,
     },
+    /// The keyboard modifiers have changed.
+    ///
+    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
+    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: Device,
@@ -502,15 +511,6 @@ pub enum DeviceEvent {
         state: ElementState,
     },
     Key(KeyboardInput),
-    /// The keyboard modifiers have changed.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
-    ///   issue, and it should get fixed - but it's the current state of the API.
-    ModifiersChanged(ModifiersState),
     Text {
         codepoint: char,
     },
