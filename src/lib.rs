@@ -6,6 +6,13 @@ pub mod event;
 pub use event::*;
 pub use proc_macro_mapp::mapp;
 
+pub mod mlib {
+    pub use super::*;
+}
+
+#[mapp(interface)]
+struct MappInterface {}
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct IO {
     pub out: Vec<u8>,

@@ -24,7 +24,7 @@ impl MappFunctionHeader {
         }
     }
 
-    fn to_client_exported_fn_tokens(&self) -> TokenStream {
+    fn to_client_exported_fn_tokens(&self, implementor_type: &Ident) -> TokenStream {
         let ident = &self.ident;
         let arg_idents: Vec<_> = self.arguments[..].iter()
             .map(|(arg_ident, _)| arg_ident).collect();
@@ -41,7 +41,7 @@ impl MappFunctionHeader {
                     .unwrap_or_else(|e| panic!("Global state of the Mapp became poisoned: {}", e));
                 let ctx = ctx.as_mut()
                     .unwrap_or_else(|| panic!("Method '{}' called without initialization of the Mapp.", stringify!(#ident)));
-                let result: #return_ty = ctx.#ident(#(#arg_idents, )*);
+                let result: #return_ty = <#implementor_type as Mapp>::#ident(ctx, #(#arg_idents, )*);
 
                 ::json5::to_string(&result)
                     .unwrap_or_else(|e| panic!("Could not serialize the result of calling the method '{}': {:?}", stringify!(#ident), e))
@@ -68,7 +68,7 @@ impl MappFunctionHeader {
         let return_ty = &self.return_type;
 
         quote! {
-            pub fn #ident(&mut self, #(#args, )*) -> #return_ty {
+            fn #ident(&mut self, #(#args, )*) -> #return_ty {
                 let serialized_args = ::json5::to_string(&(#(#arg_idents, )*))
                     .unwrap_or_else(|e| panic!("Could not serialize client-provided arguments of the method '{}': {:?}", stringify!(#ident), e));
                 let serialized_result = self.exports.#ident(serialized_args);
@@ -76,6 +76,36 @@ impl MappFunctionHeader {
                 ::json5::from_str(&serialized_result)
                     .unwrap_or_else(|e| panic!("Could not deserialize the result of calling the method '{}': {:?}", stringify!(#ident), e))
             }
+        }
+    }
+
+    fn to_fn_delegate_from_native_tokens(&self, implementor_type: &Ident) -> TokenStream {
+        let ident = &self.ident;
+        let args: Vec<_> = self.arguments[..].iter()
+            .map(|(arg_ident, arg_ty)| quote! {
+                #arg_ident: #arg_ty
+            }).collect();
+        let arg_idents: Vec<_> = self.arguments[..].iter()
+            .map(|(arg_ident, _)| arg_ident).collect();
+        let return_ty = &self.return_type;
+
+        quote! {
+            fn #ident(&mut self, #(#args, )*) -> #return_ty {
+                <#implementor_type as Mapp>::#ident(self, #(#arg_idents,)*)
+            }
+        }
+    }
+
+    fn to_host_imported_fn_header_tokens(&self) -> TokenStream {
+        let ident = &self.ident;
+        let args: Vec<_> = self.arguments[..].iter()
+            .map(|(arg_ident, arg_ty)| quote! {
+                #arg_ident: #arg_ty
+            }).collect();
+        let return_ty = &self.return_type;
+
+        quote! {
+            fn #ident(&mut self, #(#args, )*) -> #return_ty;
         }
     }
 }
@@ -141,7 +171,10 @@ fn generate_client_interface(
         .map(|f| f.to_client_header_tokens())
         .collect();
     let mapp_exported_functions: Vec<_> = mapp_function_headers.iter()
-        .map(|f| f.to_client_exported_fn_tokens())
+        .map(|f| f.to_client_exported_fn_tokens(&implementor_type))
+        .collect();
+    let mapp_delegate_functions: Vec<_> = mapp_function_headers.iter()
+        .map(|f| f.to_fn_delegate_from_native_tokens(&implementor_type))
         .collect();
     let expanded = quote! {
         mod __internal_mlib {
@@ -166,6 +199,10 @@ fn generate_client_interface(
             // GLOBAL STATE
             lazy_static! {
                 pub static ref MAPP_GLOBAL: RwLock<Option<#implementor_type>> = RwLock::new(None);
+            }
+
+            impl mlib::MappInterface for #implementor_type {
+                #(#mapp_delegate_functions)*
             }
         }
 
@@ -206,11 +243,15 @@ fn generate_host_interface(
     let mapp_function_headers_ts: Vec<_> = mapp_function_headers.iter()
         .map(|f| f.to_host_header_tokens())
         .collect();
+    let mapp_imported_function_headers: Vec<_> = mapp_function_headers.iter()
+        .map(|f| f.to_host_imported_fn_header_tokens())
+        .collect();
     let mapp_imported_functions: Vec<_> = mapp_function_headers.iter()
         .map(|f| f.to_host_imported_fn_tokens())
         .collect();
     let mapp_exports_ident = format_ident!("{}Exports", &implementor_type);
     let expanded = quote! {
+        /// A wasmtime_rust-generated struct with bindings to a WASM container
         #[wasmtime_rust::wasmtime]
         pub trait #mapp_exports_ident {
             fn initialize(&mut self);
@@ -229,8 +270,39 @@ fn generate_host_interface(
                 mapp.exports.initialize();
                 mapp
             }
+        }
 
+        impl mlib::MappInterface for #implementor_type {
             #(#mapp_imported_functions)*
+        }
+    };
+
+    // Hand the output tokens back to the compiler.
+    let mut result = proc_macro::TokenStream::new();
+    result.extend(proc_macro::TokenStream::from(expanded));
+    result
+
+}
+
+/// Generates function imports to communicate with a WASM Mapp module
+fn generate_typed_interface(
+    input: proc_macro::TokenStream,
+    mapp_function_headers: &[MappFunctionHeader]
+) -> proc_macro::TokenStream {
+    let input_cloned = input.clone();
+    let parsed_input = parse_macro_input!(input_cloned as DeriveInput);
+    let implementor_type = parsed_input.ident;
+    let mapp_imported_function_headers: Vec<_> = mapp_function_headers.iter()
+        .map(|f| f.to_host_imported_fn_header_tokens())
+        .collect();
+    let expanded = quote! {
+        /// A trait implemented by Mapps
+        pub trait #implementor_type {
+            fn api_version(&mut self) -> String {
+                env!("CARGO_PKG_VERSION").to_string()
+            }
+
+            #(#mapp_imported_function_headers)*
         }
     };
 
@@ -248,15 +320,15 @@ pub fn mapp(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pr
     let mapp_function_headers = mapp_function_headers! {
         // fn test(&mut self, arg: String) -> Vec<String>;
         fn update(&mut self, elapsed: std::time::Duration);
-        fn send_command(&mut self) -> Option<::mlib::Command>;
-        fn receive_command_response(&mut self, response: ::mlib::CommandResponse);
-        fn flush_io(&mut self) -> ::mlib::IO;
-        fn receive_event(&mut self, event: ::mlib::Event);
+        fn send_command(&mut self) -> Option<mlib::Command>;
+        fn receive_command_response(&mut self, response: mlib::CommandResponse);
+        fn flush_io(&mut self) -> mlib::IO;
+        fn receive_event(&mut self, event: mlib::Event);
     };
 
-    if args.to_string() == "host" {
-        generate_host_interface(input, &mapp_function_headers[..])
-    } else {
-        generate_client_interface(input, &mapp_function_headers[..])
+    match args.to_string().as_str() {
+        "host" => generate_host_interface(input, &mapp_function_headers[..]),
+        "interface" => generate_typed_interface(input, &mapp_function_headers[..]),
+        _ => generate_client_interface(input, &mapp_function_headers[..]),
     }
 }
