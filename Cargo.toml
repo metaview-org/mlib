@@ -9,5 +9,6 @@ edition = "2018"
 [dependencies]
 proc-macro-mapp = { path = "proc_macro_mapp" }
 serde = { version = "1.0", features = ["derive"] }
-ammolite-math = { path = "../ammolite/ammolite-math" }
+ammolite-math = { git = "https://github.com/metaview-org/ammolite", default-features = false }
+# ammolite-math = { path = "../ammolite/ammolite-math" }
 base64 = "0.11.0"
